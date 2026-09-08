@@ -1,8 +1,8 @@
 {
   "name": "RSNA report labeler",
-  "image": "mcr.microsoft.com/devcontainers/python:3.12-bookworm",
-  "features": {
-    "ghcr.io/devcontainers/features/node:2": { "version": "22" }
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/rsne_make_llm_label,type=bind",
   "workspaceFolder": "/workspaces/rsne_make_llm_label",
@@ -14,7 +14,15 @@
     "LABELER_CODEX_HOME": "/home/vscode/.codex-labeler",
     "LABELER_WORKER_DIR": "/home/vscode/label-worker",
     "PYTHONDONTWRITEBYTECODE": "1",
-    "PYTHONUNBUFFERED": "1"
+    "PYTHONUNBUFFERED": "1",
+    "HTTP_PROXY": "${localEnv:HTTP_PROXY}",
+    "HTTPS_PROXY": "${localEnv:HTTPS_PROXY}",
+    "ALL_PROXY": "${localEnv:ALL_PROXY}",
+    "NO_PROXY": "${localEnv:NO_PROXY}",
+    "http_proxy": "${localEnv:http_proxy}",
+    "https_proxy": "${localEnv:https_proxy}",
+    "all_proxy": "${localEnv:all_proxy}",
+    "no_proxy": "${localEnv:no_proxy}"
   },
   "remoteEnv": {
     "PATH": "/home/vscode/.local/bin:${containerEnv:PATH}"
