@@ -1,0 +1,96 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "study_id",
+    "labels"
+  ],
+  "properties": {
+    "study_id": {
+      "type": "string"
+    },
+    "labels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ACL",
+        "MCL",
+        "Medial Meniscus",
+        "Lateral Meniscus",
+        "Medial OA",
+        "Lateral OA",
+        "PF OA",
+        "Effusion",
+        "Synovitis",
+        "Baker's",
+        "Contusion",
+        "Fracture"
+      ],
+      "properties": {
+        "ACL": {
+          "$ref": "#/$defs/cell"
+        },
+        "MCL": {
+          "$ref": "#/$defs/cell"
+        },
+        "Medial Meniscus": {
+          "$ref": "#/$defs/cell"
+        },
+        "Lateral Meniscus": {
+          "$ref": "#/$defs/cell"
+        },
+        "Medial OA": {
+          "$ref": "#/$defs/cell"
+        },
+        "Lateral OA": {
+          "$ref": "#/$defs/cell"
+        },
+        "PF OA": {
+          "$ref": "#/$defs/cell"
+        },
+        "Effusion": {
+          "$ref": "#/$defs/cell"
+        },
+        "Synovitis": {
+          "$ref": "#/$defs/cell"
+        },
+        "Baker's": {
+          "$ref": "#/$defs/cell"
+        },
+        "Contusion": {
+          "$ref": "#/$defs/cell"
+        },
+        "Fracture": {
+          "$ref": "#/$defs/cell"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "cell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "evidence"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "positive",
+            "negative",
+            "uncertain",
+            "not_mentioned"
+          ]
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
