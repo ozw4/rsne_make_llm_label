@@ -1,0 +1,21 @@
+# 読解用CODEX_HOME/config.tomlへの配置例。開発用には使わない。
+# 採用するCodex CLIの固定バージョンで、設定の認識を確認すること。
+# モデルと推論設定は実行側で明示し、全件処理中は固定する。
+approval_policy = "never"
+sandbox_mode = "read-only"
+web_search = "disabled"
+
+# 読解用の作業ディレクトリだけをプロジェクトルートとして扱う。
+project_root_markers = []
+project_doc_fallback_filenames = []
+
+[features]
+shell_tool = false
+multi_agent = false
+memories = false
+
+[tools]
+view_image = false
+
+# このCODEX_HOMEにはMCP・追加プラグイン・共通AGENTSを登録しない。
+# ホストのCODEX_HOMEやskillsを丸ごと取り込まない。
