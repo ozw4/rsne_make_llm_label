@@ -72,6 +72,7 @@
       "additionalProperties": false,
       "required": [
         "state",
+        "support_level",
         "evidence"
       ],
       "properties": {
@@ -82,6 +83,20 @@
             "negative",
             "uncertain",
             "not_mentioned"
+          ]
+        },
+        "support_level": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "enum": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            null
           ]
         },
         "evidence": {

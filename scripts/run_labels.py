@@ -18,7 +18,9 @@ from typing import Any
 from setup_worker import CONFIG, PROMPT, ROOT, check_worker, default_paths
 
 SCHEMA = ROOT / "schemas/annotation.schema.json"
-STATES = {"positive", "negative", "uncertain", "not_mentioned"}
+SUPPORT_LEVELS = {
+    "positive": {4}, "negative": {0}, "uncertain": {1, 2, 3}, "not_mentioned": {None},
+}
 TOKEN_KEYS = ("input_tokens", "cached_input_tokens", "output_tokens")
 
 
@@ -85,11 +87,16 @@ def validate_annotation(value: Any, report: dict[str, str], labels: list[str]) -
         raise ValueError("Annotation must contain the twelve labels in schema order")
     for label in labels:
         cell = cells[label]
-        if not isinstance(cell, dict) or set(cell) != {"state", "evidence"}:
+        if not isinstance(cell, dict) or set(cell) != {"state", "support_level", "evidence"}:
             raise ValueError(f"{label}: invalid fields")
-        state, evidence = cell["state"], cell["evidence"]
-        if not isinstance(state, str) or state not in STATES:
+        state, support_level, evidence = cell["state"], cell["support_level"], cell["evidence"]
+        if not isinstance(state, str) or state not in SUPPORT_LEVELS:
             raise ValueError(f"{label}: invalid state")
+        if support_level is not None and type(support_level) is not int:
+            raise ValueError(f"{label}: support_level must be an integer or null")
+        # Enforce the state/level relationship here; the schema constrains individual fields.
+        if support_level not in SUPPORT_LEVELS[state]:
+            raise ValueError(f"{label}: support_level conflicts with state")
         if not isinstance(evidence, list):
             raise ValueError(f"{label}: evidence must be an array")
         if (state == "not_mentioned") != (len(evidence) == 0):

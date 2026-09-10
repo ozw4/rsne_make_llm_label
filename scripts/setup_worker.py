@@ -3,11 +3,37 @@ from __future__ import annotations
 
 import argparse
 import os
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PROMPT = ROOT / "prompts/codex_report_labeling_instructions_v1.md"
+PROMPT = ROOT / "prompts/codex_report_labeling_instructions_v2.md"
 CONFIG = ROOT / "config/labeler.toml"
+
+
+def check_plugin_cache(home: Path) -> None:
+    config = tomllib.loads((home / "config.toml").read_text(encoding="utf-8"))
+    if any(config.get("features", {}).get(name) is not False for name in ("plugins", "apps")):
+        raise ValueError("Reader plugin and app features must be explicitly disabled")
+    if any(config.get(name) for name in ("mcp_servers", "plugins", "apps")):
+        raise ValueError("Do not configure reader MCP servers, plugins, or apps")
+    plugins = home / "plugins"
+    if not plugins.exists() and not plugins.is_symlink():
+        return
+    # These are CLI-generated paths observed with 0.153.4. Cached packages may
+    # contain skills/code; they are allowed only with both capabilities disabled.
+    boundaries = (
+        (plugins, {"cache", ".remote-plugin-install-staging"}),
+        (plugins / "cache", {"openai-curated-remote"}),
+        (plugins / ".remote-plugin-install-staging", set()),
+    )
+    for directory, allowed in boundaries:
+        if directory.is_symlink() or (directory.exists() and not directory.is_dir()):
+            raise ValueError("Unexpected reader plugin cache path type")
+        if directory.is_dir() and any(p.name not in allowed or not p.is_dir() for p in directory.iterdir()):
+            raise ValueError("Unapproved reader plugin cache entry")
+    if any(p.is_symlink() for p in plugins.rglob("*")):
+        raise ValueError("Reader plugin cache must not contain symbolic links")
 
 
 def default_paths() -> tuple[Path, Path]:
@@ -35,10 +61,11 @@ def check_worker(worker: Path, home: Path) -> None:
     for name in ("AGENTS.md", "AGENTS.override.md", "config.override.toml"):
         if (home / name).exists():
             raise ValueError(f"Remove extra reader instructions/config: {name}")
-    # User-installed skills/plugins can add context even to new sessions.
-    for directory in (home / "skills", home / "plugins", Path.home() / ".agents/skills"):
+    # Standalone user skills can add context even when plugins are disabled.
+    for directory in (home / "skills", Path.home() / ".agents/skills"):
         if directory.is_dir() and any(p.name != ".system" for p in directory.iterdir()):
             raise ValueError("Do not install custom skills/plugins in the reader environment")
+    check_plugin_cache(home)
 
 
 def install_file(source: Path, destination: Path, replace: bool) -> None:
