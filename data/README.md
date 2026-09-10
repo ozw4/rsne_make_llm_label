@@ -1,8 +1,8 @@
-# 入力データ（ローカル専用）
+# Input data (local only)
 
-`reports.jsonl` を配置してください。UTF-8で1行1件、キーは `study_id` と `report` だけです。
-実行スクリプトは追加列、空のレポート、重複IDを拒否します。
-原文を要約・正規化せず、複数行の本文はJSON文字列内でエスケープしてください。
+Place `reports.jsonl` here. Use UTF-8 with one record per line and only the keys `study_id` and `report`.
+The execution script rejects extra columns, empty reports, and duplicate IDs.
+Do not summarize or normalize the original text. Escape line breaks in multiline reports within the JSON string.
 
-元の `train.csv`、gold、既存ラベル、画像予測、画像をこの環境に持ち込まないでください。
-このREADME以外はGit管理外です。
+Do not bring the original `train.csv`, gold labels, existing labels, image predictions, or images into this environment.
+Everything in this directory except this README is excluded from Git.

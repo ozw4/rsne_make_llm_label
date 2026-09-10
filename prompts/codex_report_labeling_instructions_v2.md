@@ -1,4 +1,4 @@
-# RSNA Knee: Shared Instructions for Reading a Single Report v1
+# RSNA Knee: Shared Instructions for Reading a Single Report v2
 
 ## Role and Input
 
@@ -55,6 +55,25 @@ Do not create additional numerical thresholds or exclusion rules. Preserve "roug
 
 Assess the 12 targets independently. Do not infer a target's status from another target's positive or negative status, and do not impose mutual exclusivity constraints on the examination as a whole. Multiple abnormalities may coexist.
 
+## Report Support Level
+
+For each target, also assign `support_level` to express the ordinal support in this report for meeting the official positive criteria. It describes the direction and strength of the report evidence, not disease severity, confidence that your answer is correct, a calibrated probability, or an image-derived diagnosis.
+
+Use only the following combinations of `state` and `support_level`:
+
+| state | support_level | Meaning |
+|---|---|---|
+| negative | 0 | The report clearly supports the absence of a qualifying finding, including a finding that is clearly below the official positive threshold. |
+| uncertain | 1 | Report evidence leans toward not meeting the official positive criteria, but is not conclusive. |
+| uncertain | 2 | Relevant information is present, but it does not support a direction. |
+| uncertain | 3 | Report evidence leans toward meeting the official positive criteria, but is not conclusive. |
+| positive | 4 | The report clearly supports meeting the official positive criteria. |
+| not_mentioned | null | There is no applicable report statement. |
+
+Levels 1 and 3 require directional evidence in the report, and the quoted `evidence` must support that direction. Do not infer a direction from general disease prevalence, other target labels, or missing severity information. When relevant information is present but provides no direction, use `uncertain` with level 2. Keep `not_mentioned` separate from uncertainty and use JSON `null` for its support level.
+
+Do not impose quotas or a desired distribution of states or support levels. Do not convert these levels into probabilities, training labels, or weights.
+
 ## Output
 
 Return exactly one JSON object. Do not output Markdown, explanations, reasoning steps, or an overall assessment.
@@ -65,9 +84,10 @@ The only top-level keys must be `study_id` and `labels`. Return `study_id` witho
 
 `ACL`, `MCL`, `Medial Meniscus`, `Lateral Meniscus`, `Medial OA`, `Lateral OA`, `PF OA`, `Effusion`, `Synovitis`, `Baker's`, `Contusion`, `Fracture`
 
-The value of each key must be an object containing only `state` and `evidence`.
+The value of each key must be an object containing exactly `state`, `support_level`, and `evidence`.
 
 - `state`: A string representing one of the four states above.
+- `support_level`: An integer from 0 through 4, or JSON `null`, using the required state/level combinations above.
 - `evidence`: An array of strings quoting contiguous spans of the original text that support the judgment. Do not summarize, translate, paraphrase, or add ellipses. Preserve information needed for the judgment, such as negation, severity, location, and timing. Usually quote the shortest single span that retains this information; quote multiple spans when necessary. For contradictions, quote both sides.
 
 For `not_mentioned`, `evidence` must be `[]`. For every other state, include at least one supporting span from the original text. After JSON decoding, each evidence string must match a substring of `report`. The same quotation may serve as evidence for multiple targets.

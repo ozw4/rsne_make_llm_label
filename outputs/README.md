@@ -1,9 +1,9 @@
-# 実行結果（ローカル専用）
+# Run outputs (local only)
 
-実行ごとに `labels_v1/` などの出力先を指定してください。
-`annotations/` に読解結果、`receipts/` に検証済み完了状態と使用量、
-`attempts/` に各試行のイベントと応答を保存します。
-本文・指示・設定を変更する場合は新しい出力先を使います。
+Specify an output location such as `labels_v1/` for each run.
+Report-reading results are saved in `annotations/`, validated completion status and usage in `receipts/`,
+and the events and responses from each attempt in `attempts/`.
+Use a new output location when changing the report text, instructions, or settings.
 
-根拠やログにはレポート由来の情報が含まれます。
-このREADME以外はGit管理外です。手動でGitへ追加しないでください。
+Evidence and logs contain information from the reports.
+Everything in this directory except this README is excluded from Git. Do not add it to Git manually.

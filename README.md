@@ -1,20 +1,21 @@
 # rsne_make_llm_label
 
-膝MRIレポートを **1件ごとに必ず新しいCodexセッション** で読み、12ターゲットの状態と原文根拠を保存する専用作業環境です。Python標準ライブラリだけで実行・テストできます。画像学習、正解ラベルの読み込み、学習用0/1への変換は行いません。
+This dedicated workspace reads knee MRI reports in **a new Codex session for every report** and saves the states and ordinal report support levels of 12 targets with evidence quoted from the original report. It can be run and tested using only the Python standard library. It does not train on images, load ground-truth labels, or convert results into binary 0/1 training labels.
 
-## 配置
+## Layout
 
 ```text
 /workspaces/rsne_make_llm_label/
-├── AGENTS.md                         # 実装・保守用
+├── AGENTS.md                         # Implementation and maintenance instructions
 ├── .devcontainer/
 │   ├── devcontainer.json
 │   └── post-create.sh
 ├── config/
-│   ├── codex-version.txt              # CLI 0.153.4を固定
-│   └── labeler.toml                   # 読解用設定の正本
+│   ├── codex-version.txt              # Pins CLI version 0.153.4
+│   └── labeler.toml                   # Source of truth for report-reading configuration
 ├── prompts/
-│   └── codex_report_labeling_instructions_v1.md
+│   ├── codex_report_labeling_instructions_v1.md  # Preserved previous contract
+│   └── codex_report_labeling_instructions_v2.md  # Active labeling instructions
 ├── schemas/
 │   └── annotation.schema.json
 ├── scripts/
@@ -22,99 +23,132 @@
 │   └── run_labels.py
 ├── tests/
 │   └── test_labeler.py
-├── data/                             # README以外はGit管理外
-└── outputs/                          # README以外はGit管理外
+├── data/                             # Excluded from Git except for its README
+└── outputs/                          # Excluded from Git except for its README
 
 /home/vscode/label-worker/
-└── AGENTS.md                         # 共通指示v1の無変更コピー
+└── AGENTS.md                         # Unmodified copy of the shared v2 instructions
 
-/home/vscode/.codex-labeler/           # 読解専用CODEX_HOME・専用Docker volume
-├── config.toml                       # config/labeler.tomlのコピー
-└── 認証情報など                      # Gitに追加しない
+/home/vscode/.codex-labeler/           # Dedicated CODEX_HOME and Docker volume for report reading
+├── config.toml                       # Copy of config/labeler.toml
+└── credentials, etc.                 # Do not add to Git
 ```
 
-`label-worker` と読解用 `CODEX_HOME` はセットアップ時にコンテナ内へ作成します。リポジトリ内にworker用AGENTS.mdの別正本は作りません。開発用Codexへ `CODEX_HOME` をグローバル設定せず、読解プロセスにだけ専用の値を渡します。
+Setup creates `label-worker` and the report-reading `CODEX_HOME` inside the container. There is no separate source of truth for the worker's AGENTS.md in the repository. Do not set `CODEX_HOME` globally for the development Codex; pass the dedicated value only to report-reading processes.
 
-## 開始手順
+## Getting started
 
-このリポジトリだけをVS Codeで開き、**Dev Containers: Reopen in Container** を実行します。Python 3.12 / Node.js 22を用意し、`config/codex-version.txt` に固定したCodex CLIをインストールします。初回セットアップにはイメージ・npmパッケージ取得のネットワーク接続が必要です。認証・有料推論・データダウンロードは自動実行しません。
+Open only this repository in VS Code and run **Dev Containers: Reopen in Container**. The container sets up Python 3.12 and Node.js 22 and installs the Codex CLI version pinned in `config/codex-version.txt`. Initial setup requires network access to download the image and npm packages. Authentication, paid inference, and data downloads do not run automatically.
 
-コンテナのターミナルで読解用アカウントを認証します。
+Authenticate the account used for report reading in the container terminal.
 
 ```bash
 CODEX_HOME="$LABELER_CODEX_HOME" codex login --device-auth
 ```
 
-認証情報は専用volumeに保持します。ホストの `~/.codex`、元の学習リポジトリ、gold、画像予測、画像データを追加マウントしないでください。データ利用条件と利用するCodex環境への入力可否は、実データ送信前に確認してください。
+Credentials are stored in a dedicated volume. Do not mount the host's `~/.codex`, the original training repository, gold labels, image predictions, or image data. Before sending real data, check its terms of use and whether it may be submitted to the Codex environment you will use.
 
-`data/reports.jsonl` に、あらかじめラベル列を除外したデータを配置します。UTF-8 JSONLで、各行のキーは `study_id` と `report` の2つだけです。改行を含むレポート本文はJSON文字列内でエスケープします。本文の改変・要約・正規化はしません。
+Place data in `data/reports.jsonl` after removing label columns. Use UTF-8 JSONL, with exactly two keys per line: `study_id` and `report`. Escape any line breaks in report text within the JSON string. Do not modify, summarize, or normalize the report text.
 
-以下は実データではなく、入力形式の人工例です。
+The following is a synthetic example of the input format, not real data.
 
 ```json
 {"study_id":"synthetic-001","report":"The ACL is intact. Small joint effusion."}
 ```
 
-モデルは自動選択しません。アカウントで利用可能なモデルIDを設定し、全件処理中は固定してください。
+The v2 pilot is limited to the first 50 reports in source order. It checks the execution pipeline and annotations; it does not guarantee that the selected reports have no gold labels and is not an accuracy evaluation. Keep the source file and ordering unchanged throughout the pilot.
+
+Set an explicit model ID available to the dedicated report-reading account and keep it fixed for the pilot. An explicit model already configured in that dedicated environment may be reused; if neither is available, stop before paid execution. Check login status without logging in automatically or switching accounts. Stop any active labeler run before refreshing the worker instructions to v2.
 
 ```bash
-export CODEX_MODEL="利用可能なモデルIDに置き換える"
+export CODEX_MODEL="replace-with-an-available-model-id"
+CODEX_HOME="$LABELER_CODEX_HOME" codex login status
 
-# 入力・指示配置の確認だけ。Codexは起動しません。
-python scripts/run_labels.py \
-  --input data/reports.jsonl --output-dir outputs/labels_v1 \
-  --model "$CODEX_MODEL" --limit 5 --dry-run
+# Only after confirming that no labeler run is active.
+python scripts/setup_worker.py --replace
 
-# 最初の5件。ここからCodexを実行し、利用枠を消費します。
+# Validate the first 50 reports and instruction setup without launching Codex.
 python scripts/run_labels.py \
-  --input data/reports.jsonl --output-dir outputs/labels_v1 \
-  --model "$CODEX_MODEL" --reasoning-effort medium --limit 5
+  --input data/reports.jsonl --output-dir outputs/pilot50_support_v2 \
+  --model "$CODEX_MODEL" --reasoning-effort medium \
+  --attempts 1 --timeout 300 --limit 50 --dry-run
+
+# Process only the first report. This consumes usage quota.
+python scripts/run_labels.py \
+  --input data/reports.jsonl --output-dir outputs/pilot50_support_v2 \
+  --model "$CODEX_MODEL" --reasoning-effort medium \
+  --attempts 1 --timeout 300 --limit 1
 ```
 
-結果と使用量を確認後、同じコマンドから `--limit 5` を外すと、完了済みの5件をスキップして残りを処理します。`--limit N` は「先頭N件」であり、完了分もN件に含みます。対象数の統計確認やgoldの選別は読解前に別環境で済ませてください。
+Verify that the first report completed with a valid v2 annotation before continuing. If it fails, stop and inspect the failure; do not retry it or proceed to the next command automatically. After successful validation, use the same input, output directory, and execution settings for the first 50 reports:
 
-## 実行と再開の契約
+```bash
+python scripts/run_labels.py \
+  --input data/reports.jsonl --output-dir outputs/pilot50_support_v2 \
+  --model "$CODEX_MODEL" --reasoning-effort medium \
+  --attempts 1 --timeout 300 --limit 50
+```
 
-共通指示はworkerのAGENTS.mdから読み込ませ、標準入力には1件分のJSONだけを渡します。`codex exec --ephemeral --json --output-schema ...` を毎回新規起動します。`resume`、`fork`、前件の履歴、複数レポートの同時投入は使いません。プロンプトと出力形式は固定しますが、新規セッション間のキャッシュ命中は保証せず使用量で確認します。
+`--limit N` means the first N reports, including any already completed reports. The validated first report is skipped when processing the first 50. Stop at 50 and retain the limit; this workflow does not authorize a full-dataset run. Do not retry a failed report automatically.
 
-デフォルトは逐次処理・1試行・1件300秒のタイムアウトです。`--attempts 2` のように指定した場合も、各再試行は新規セッションです。最終失敗時はそこで停止し、原因を直して同じコマンドを再実行します。失敗を陰性や未言及に置き換えません。タイムアウトやCtrl-CではCLIのプロセスグループを終了させます。
+After the runner initializes `manifest.json`, create the private summary at `outputs/pilot50_support_v2/pilot_summary.json`, outside Git. Record the selected study IDs, input hash, completion and failure counts, state and support-level counts by target, and token usage. For a completed pilot, verify 50 valid annotations, 50 distinct receipt thread IDs, and 600 target cells. Report input, cached input, output, and total tokens; cached input is included in input and total tokens and must not be added twice. Include failed-attempt usage wherever it is available. Do not convert the results to binary labels, weights, or calibrated probabilities, use majority voting, or run reviewer LLMs.
 
-同じ出力先では、モデル・推論設定・CLI版・共通指示・スキーマ・読解設定・実行コードの変更を拒否します。完了済みのstudyで本文が変わった場合も停止します。変更した版は新しい出力先を使ってください。設定を更新する場合は実行を止めてから `python scripts/setup_worker.py --replace` でコピーを更新します。
+## Execution and resume contract
 
-## 出力
+The shared instructions are loaded from the worker's AGENTS.md, and standard input contains only the JSON for one report. Each invocation starts a new `codex exec --ephemeral --json --output-schema ...` process. Do not use `resume`, `fork`, history from a previous report, or multiple reports in a single input. The prompt and output format are fixed, but cache hits across new sessions are not guaranteed; check the usage records to verify them.
+
+Defaults are sequential processing, one attempt, and a 300-second timeout per report. For this pilot, keep `--attempts 1` and stop on any failure without retrying the failed report. Failures are not replaced with negative or not-mentioned results. A timeout or Ctrl-C terminates the CLI process group.
+
+When reusing an output directory, changes to the model, reasoning settings, CLI version, shared instructions, schema, report-reading configuration, or execution code are rejected. Processing also stops if the report text changes for a completed study. Use a new output directory for a changed version. To update the configuration, stop any active run and then update the copies with `python scripts/setup_worker.py --replace`.
+
+## Outputs
 
 ```text
-outputs/labels_v1/
-├── manifest.json                     # 固定設定と各ファイルのSHA-256
-├── annotations/<study_id>.json       # 12ターゲットのstate/evidence
-├── receipts/<study_id>.json          # 検証済み完了マーカー・使用量・thread ID
+outputs/pilot50_support_v2/
+├── manifest.json                     # Fixed settings and SHA-256 hashes of each file
+├── pilot_summary.json                # Private summary created after manifest initialization
+├── annotations/<study_id>.json       # state/support_level/evidence for the 12 targets
+├── receipts/<study_id>.json          # Validated completion marker, usage, and thread ID
 └── attempts/<study_id>/attempt-*/
-    ├── response.json                 # 各試行のモデル応答（未生成の場合あり）
-    ├── events.jsonl                  # CLIのJSONイベント
+    ├── response.json                 # Model response for each attempt (may not be generated)
+    ├── events.jsonl                  # CLI JSON events
     ├── stderr.log
-    └── failure.json                  # 失敗時だけ
+    └── failure.json                  # Only on failure
 ```
 
-ID一致、12キーと順序、4状態、根拠の空配列条件、根拠が原文の部分文字列であることを検証します。医学的な正誤を正規表現で判定・上書きしません。予期しないツール利用や複数ターンをイベントで検出した場合も完了扱いにしません。
+Each target has exactly three fields: `state`, `support_level`, and `evidence`. Support levels describe ordinal report evidence for meeting the official positive criteria, not disease severity, answer confidence, or calibrated probabilities.
 
-`receipts` は結果保存後に最後に発行します。再開時は本文ハッシュ・結果ハッシュ・形式を再確認して完了分だけをスキップします。完了済みファイルの破損は黙って上書きせず停止します。`manifest.json` の存在だけでは全件完了を意味しません。
+| state | support_level | Report support |
+|---|---|---|
+| negative | 0 | Clearly supports absence of a qualifying finding, including a clearly subthreshold finding. |
+| uncertain | 1 | Leans toward not meeting the positive criteria, but is not conclusive. |
+| uncertain | 2 | Relevant information is present without a supported direction. |
+| uncertain | 3 | Leans toward meeting the positive criteria, but is not conclusive. |
+| positive | 4 | Clearly supports meeting the positive criteria. |
+| not_mentioned | null | No applicable report statement. |
 
-使用量は各receiptの `usage.input_tokens`、`usage.cached_input_tokens`、`usage.output_tokens` などです。失敗した試行でも消費が発生し得るため、試行ごとの `events.jsonl` も残します。ログや根拠にはレポートの情報が含まれるので、Gitへ追加したり公開共有したりしないでください。`--ephemeral` はこのアプリの結果・イベントログを削除する指定ではありません。
+Levels 1 and 3 require directional evidence quoted from the report. Do not infer direction from general prevalence, other target labels, or missing severity information, and do not impose quotas.
 
-## テスト
+Validation checks that the ID matches, all 12 keys appear in the required order, states and support levels use the allowed values and combinations, evidence arrays are empty when required, and each evidence string is a substring of the original report. Regular expressions are not used to judge or override medical correctness. A result is also not marked complete if the events reveal unexpected tool use or multiple turns.
+
+`receipts` are written last, after saving the results. On resume, the report hash, result hash, and format are rechecked, and only completed reports are skipped. Processing stops if completed files are corrupted instead of silently overwriting them. The presence of `manifest.json` alone does not mean all reports are complete.
+
+Usage is recorded in fields such as `usage.input_tokens`, `usage.cached_input_tokens`, and `usage.output_tokens` in each receipt. Failed attempts may also consume usage, so `events.jsonl` is retained for each attempt. Logs and evidence contain report information; do not add them to Git or share them publicly. `--ephemeral` does not delete this application's results or event logs.
+
+## Tests
 
 ```bash
 python -m unittest discover -s tests -v
 python -m compileall -q scripts tests
 ```
 
-テストは人工レポートとモックを使い、Codexへの問い合わせは行いません。オフラインテストの合格は、実際の認証・モデル利用可否・ラベル精度・キャッシュ命中の検証を意味しません。実データ全件処理の前に少数件で確認してください。
+Tests use synthetic reports and mocks without making calls to Codex. Passing offline tests does not verify actual authentication, model availability, label accuracy, or cache hits. Use the bounded pilot above to check authentication, model availability, and actual usage; label accuracy requires a separately authorized evaluation.
 
-このdevcontainerは不要なデータを持ち込まない作業分離です。悪意あるコードからの完全な隔離ではありません。読解用にカスタムskills、MCP、プラグイン、グローバルAGENTS.mdを追加しないでください。
+This devcontainer separates the workspace to keep unnecessary data out. It does not provide complete isolation from malicious code. Do not add custom skills, MCP, plugins, or a global AGENTS.md to the report-reading environment.
 
-## 参照
+## References
 
-判定指示は提供済み `codex_report_labeling_instructions_v1.md` を無変更で採用しています。医学的な条件はそのファイル内の出典に従います。
+The active `codex_report_labeling_instructions_v2.md` extends the current English v1 instructions with the required ordinal `support_level` field. The v1 file remains unchanged. Official quotations, medical definitions, four states, 12 targets, and verbatim evidence rules are preserved. Medical criteria follow the sources cited in the prompt.
 
 - [Codex non-interactive mode](https://developers.openai.com/codex/noninteractive)
 - [AGENTS.md](https://developers.openai.com/codex/guides/agents-md)
@@ -122,3 +156,7 @@ python -m compileall -q scripts tests
 - [Codex authentication](https://developers.openai.com/codex/auth)
 - [Codex CLI 0.153.4 release](https://github.com/openai/codex/releases/tag/rust-v0.153.4)
 - [Dev Containers Python image](https://github.com/devcontainers/images/tree/main/src/python)
+
+The reader explicitly disables `features.plugins` and `features.apps`. Codex 0.153.4 can still leave downloaded packages under `plugins/cache/openai-curated-remote` and an empty `plugins/.remote-plugin-install-staging` directory. Preflight accepts this observed cache layout only while both features are disabled, rejects symbolic links and other plugin cache locations, and retains the standalone skill and extra-instruction checks. Check the effective flags with `CODEX_HOME="$LABELER_CODEX_HOME" codex features list` from the reader directory after setup.
+
+Configuration or setup changes alter the run identity. Preserve earlier manifests and results, and use a separate output directory with an explicit input containing only the unattempted members of the original cohort. A combined private summary must retain each part's identity and any unresolved limitation on the earlier reader context; the absence of tool events alone does not prove that plugin instructions were absent.
