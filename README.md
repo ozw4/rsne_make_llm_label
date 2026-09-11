@@ -1,5 +1,10 @@
 # rsne_make_llm_label
 
+The separately authorized canonical finalization workflow is documented in
+[Canonical V2 finalization](docs/canonical_finalization.md). It preserves the
+generation contract and original artifacts, with separate adjudication provenance
+and post-generation gold calibration.
+
 This dedicated workspace reads knee MRI reports in **a new Codex session for every report** and saves the states and ordinal report support levels of 12 targets with evidence quoted from the original report. It can be run and tested using only the Python standard library. It does not train on images, load ground-truth labels, or convert results into binary 0/1 training labels.
 
 ## Layout
